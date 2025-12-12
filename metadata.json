@@ -1,0 +1,5 @@
+{
+  "name": "LabLoop",
+  "description": "An interactive ML Experiment Dashboard powered by Gemini 3. Plan, simulate, and analyze machine learning experiments in real-time.",
+  "requestFramePermissions": []
+}
