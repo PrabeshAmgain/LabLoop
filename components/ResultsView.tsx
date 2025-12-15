@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExperimentPlan } from '../types';
-import { Trophy, BarChart3, Clock, Database, Zap } from 'lucide-react';
+import { Trophy, BarChart3, Clock, Database, Zap, Activity } from 'lucide-react';
 
 interface ResultsViewProps {
   plan: ExperimentPlan;
@@ -8,6 +8,10 @@ interface ResultsViewProps {
 
 export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   const winner = plan.experiments.find(e => e.id === plan.recommendedWinnerId) || plan.experiments[0];
+  
+  // Calculate max values for scaling the bars relative to the dataset
+  const maxLatency = Math.max(...plan.experiments.map(e => e.simulatedMetrics.latencyMs));
+  const maxSize = Math.max(...plan.experiments.map(e => e.simulatedMetrics.modelSizeMb));
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in-up">
@@ -37,6 +41,97 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                 <div className="text-xs text-emerald-200 uppercase tracking-wide">Latency</div>
             </div>
         </div>
+      </div>
+
+      {/* Visual Charts Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Accuracy Chart */}
+        <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col">
+            <div className="flex items-center gap-2 mb-4 text-blue-400">
+                <Activity size={20} />
+                <h3 className="font-semibold">Accuracy Comparison</h3>
+            </div>
+            <div className="space-y-4 flex-1">
+                {plan.experiments.map(exp => {
+                    const isWinner = exp.id === plan.recommendedWinnerId;
+                    const pct = exp.simulatedMetrics.accuracy * 100;
+                    return (
+                        <div key={exp.id}>
+                            <div className="flex justify-between text-xs mb-1.5">
+                                <span className={isWinner ? "text-emerald-400 font-bold" : "text-slate-300"}>{exp.name}</span>
+                                <span className="text-slate-400 font-mono">{pct.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ${isWinner ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-blue-600 to-blue-400'}`} 
+                                    style={{ width: `${pct}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+
+        {/* Latency Chart */}
+        <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col">
+            <div className="flex items-center gap-2 mb-4 text-amber-400">
+                <Zap size={20} />
+                <h3 className="font-semibold">Latency (Lower is better)</h3>
+            </div>
+            <div className="space-y-4 flex-1">
+                {plan.experiments.map(exp => {
+                    const isWinner = exp.id === plan.recommendedWinnerId;
+                    // Calculate width relative to max latency
+                    const widthPct = (exp.simulatedMetrics.latencyMs / maxLatency) * 100;
+                    return (
+                        <div key={exp.id}>
+                            <div className="flex justify-between text-xs mb-1.5">
+                                <span className={isWinner ? "text-emerald-400 font-bold" : "text-slate-300"}>{exp.name}</span>
+                                <span className="text-slate-400 font-mono">{exp.simulatedMetrics.latencyMs}ms</span>
+                            </div>
+                            <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ${isWinner ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-amber-600 to-amber-400'}`} 
+                                    style={{ width: `${widthPct}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+
+        {/* Model Size Chart */}
+        <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col">
+            <div className="flex items-center gap-2 mb-4 text-purple-400">
+                <Database size={20} />
+                <h3 className="font-semibold">Model Size</h3>
+            </div>
+            <div className="space-y-4 flex-1">
+                {plan.experiments.map(exp => {
+                    const isWinner = exp.id === plan.recommendedWinnerId;
+                    // Calculate width relative to max size
+                    const widthPct = (exp.simulatedMetrics.modelSizeMb / maxSize) * 100;
+                    return (
+                        <div key={exp.id}>
+                            <div className="flex justify-between text-xs mb-1.5">
+                                <span className={isWinner ? "text-emerald-400 font-bold" : "text-slate-300"}>{exp.name}</span>
+                                <span className="text-slate-400 font-mono">{exp.simulatedMetrics.modelSizeMb} MB</span>
+                            </div>
+                            <div className="w-full bg-slate-700/30 rounded-full h-2.5 overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ${isWinner ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-purple-600 to-purple-400'}`} 
+                                    style={{ width: `${widthPct}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+
       </div>
 
       {/* Comparison Table */}
