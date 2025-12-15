@@ -68,10 +68,14 @@ export const generateExperimentPlan = async (goal: string): Promise<ExperimentPl
 
   try {
     const data = JSON.parse(response.text);
-    // Add initial status to the parsed data
+    // Add initial status and progress to the parsed data
     return {
       ...data,
-      experiments: data.experiments.map((exp: any) => ({ ...exp, status: 'pending' }))
+      experiments: data.experiments.map((exp: any) => ({ 
+        ...exp, 
+        status: 'pending',
+        progress: 0
+      }))
     };
   } catch (e) {
     console.error("Failed to parse Gemini response", e);

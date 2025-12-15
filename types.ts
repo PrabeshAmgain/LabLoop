@@ -22,6 +22,7 @@ export interface ExperimentModel {
     modelSizeMb: number;
   };
   status: 'pending' | 'running' | 'completed';
+  progress: number; // 0-100
 }
 
 export interface ExperimentPlan {

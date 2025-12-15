@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExperimentStatus, ExperimentPlan, LogEntry } from './types';
 import { generateExperimentPlan } from './services/geminiService';
 import { InputSection } from './components/InputSection';
@@ -42,6 +42,19 @@ const App: React.FC = () => {
     }
   };
 
+  // Helper to update experiment progress
+  const updateExperimentProgress = (expId: string, progress: number, status?: 'pending' | 'running' | 'completed') => {
+    setPlan(prev => {
+      if (!prev) return null;
+      const newExps = prev.experiments.map(e => 
+        e.id === expId 
+          ? { ...e, progress, ...(status ? { status } : {}) } 
+          : e
+      );
+      return { ...prev, experiments: newExps };
+    });
+  };
+
   // Simulation Logic
   useEffect(() => {
     if (status !== ExperimentStatus.EXECUTING || !plan) return;
@@ -51,6 +64,7 @@ const App: React.FC = () => {
 
     const runSimulation = async () => {
       addLog("Initializing experiment environment...", "info");
+      addLog("Allocating virtual resources (vCPU, RAM)...", "info");
       addLog(`Loaded plan: ${plan.planTitle}`, "info");
       
       let delayOffset = 1500;
@@ -58,49 +72,70 @@ const App: React.FC = () => {
       for (let i = 0; i < plan.experiments.length; i++) {
         const exp = plan.experiments[i];
         
-        // Start Experiment
+        // 1. Initialization (0%)
         timeoutIds.push(setTimeout(() => {
           if (!isMounted) return;
           setCurrentExperimentId(exp.id);
-          setPlan(prev => {
-            if (!prev) return null;
-            const newExps = prev.experiments.map(e => e.id === exp.id ? { ...e, status: 'running' as const } : e);
-            return { ...prev, experiments: newExps };
-          });
+          updateExperimentProgress(exp.id, 0, 'running');
           addLog(`Starting Experiment ${i + 1}: ${exp.name}`, "info");
-          addLog(`Allocating resources for ${exp.name}...`, "info");
-        }, delayOffset));
-
-        delayOffset += 1500;
-
-        // Simulate training/eval steps
-        timeoutIds.push(setTimeout(() => {
-            if (!isMounted) return;
-            addLog(`Training ${exp.name} (Epoch 1/5)... loss: ${(Math.random() * 0.5 + 0.5).toFixed(3)}`, "info");
-        }, delayOffset));
-        delayOffset += 800;
-        
-        timeoutIds.push(setTimeout(() => {
-            if (!isMounted) return;
-            addLog(`Training ${exp.name} (Epoch 5/5)... loss: ${(Math.random() * 0.1).toFixed(3)}`, "info");
         }, delayOffset));
         delayOffset += 800;
 
+        // 2. Data Loading (15%)
         timeoutIds.push(setTimeout(() => {
-            if (!isMounted) return;
-            addLog(`Evaluating ${exp.name} on validation set...`, "warning");
+           if (!isMounted) return;
+           updateExperimentProgress(exp.id, 15);
+           addLog(`[${exp.name}] Loading and normalizing dataset...`, "info");
+        }, delayOffset));
+        delayOffset += 1200;
+
+        // 3. Architecture Setup (30%)
+        timeoutIds.push(setTimeout(() => {
+           if (!isMounted) return;
+           updateExperimentProgress(exp.id, 30);
+           addLog(`[${exp.name}] Initializing model architecture and weights...`, "info");
         }, delayOffset));
         delayOffset += 1000;
 
-        // Finish Experiment
+        // 4. Training Start (45%)
+        timeoutIds.push(setTimeout(() => {
+           if (!isMounted) return;
+           updateExperimentProgress(exp.id, 45);
+           addLog(`[${exp.name}] Starting training loop. Batch size: 32`, "info");
+        }, delayOffset));
+        delayOffset += 1500;
+
+        // 5. Training Mid (60%)
+        timeoutIds.push(setTimeout(() => {
+           if (!isMounted) return;
+           updateExperimentProgress(exp.id, 60);
+           const loss = (Math.random() * 0.5 + 0.3).toFixed(4);
+           addLog(`[${exp.name}] Epoch 1/10 | Loss: ${loss} | Acc: ${(Math.random() * 0.4 + 0.2).toFixed(2)}`, "info");
+        }, delayOffset));
+        delayOffset += 1200;
+
+        // 6. Training Late (75%)
+        timeoutIds.push(setTimeout(() => {
+           if (!isMounted) return;
+           updateExperimentProgress(exp.id, 75);
+           const loss = (Math.random() * 0.2 + 0.1).toFixed(4);
+           addLog(`[${exp.name}] Epoch 10/10 | Loss: ${loss} | Acc: ${(exp.simulatedMetrics.accuracy * 0.95).toFixed(2)}`, "info");
+        }, delayOffset));
+        delayOffset += 1200;
+
+        // 7. Validation (90%)
+        timeoutIds.push(setTimeout(() => {
+           if (!isMounted) return;
+           updateExperimentProgress(exp.id, 90);
+           addLog(`[${exp.name}] Evaluating on validation set...`, "warning");
+        }, delayOffset));
+        delayOffset += 1500;
+
+        // 8. Completion (100%)
         timeoutIds.push(setTimeout(() => {
           if (!isMounted) return;
-          setPlan(prev => {
-            if (!prev) return null;
-            const newExps = prev.experiments.map(e => e.id === exp.id ? { ...e, status: 'completed' as const } : e);
-            return { ...prev, experiments: newExps };
-          });
-          addLog(`Completed ${exp.name}. Accuracy: ${(exp.simulatedMetrics.accuracy * 100).toFixed(1)}%`, "success");
+          updateExperimentProgress(exp.id, 100, 'completed');
+          addLog(`Completed ${exp.name}. Final Accuracy: ${(exp.simulatedMetrics.accuracy * 100).toFixed(1)}%`, "success");
         }, delayOffset));
         
         delayOffset += 500;
@@ -112,7 +147,7 @@ const App: React.FC = () => {
         setCurrentExperimentId(null);
         setStatus(ExperimentStatus.COMPLETED);
         addLog("All experiments completed successfully.", "success");
-        addLog("Generating final report...", "info");
+        addLog("Generating final comparative report...", "info");
       }, delayOffset));
     };
 
@@ -122,7 +157,7 @@ const App: React.FC = () => {
       isMounted = false;
       timeoutIds.forEach(clearTimeout);
     };
-  }, [status, plan?.experiments.length]); // Dependencies for starting effect
+  }, [status, plan?.experiments.length]); 
 
   return (
     <div className="min-h-screen bg-slate-900 text-white selection:bg-blue-500 selection:text-white pb-20">
