@@ -74,7 +74,11 @@ export const generateExperimentPlan = async (goal: string): Promise<ExperimentPl
       experiments: data.experiments.map((exp: any) => ({ 
         ...exp, 
         status: 'pending',
-        progress: 0
+        progress: 0,
+        liveMetrics: {
+          accuracy: 0,
+          latencyMs: 0
+        }
       }))
     };
   } catch (e) {

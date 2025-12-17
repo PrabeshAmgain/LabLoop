@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ExperimentModel, LogEntry } from '../types';
-import { Terminal, CheckCircle2, Loader2, Circle, Activity, Cpu, Database } from 'lucide-react';
+import { Terminal, CheckCircle2, Loader2, Circle, Activity, Cpu, Database, Zap, Target } from 'lucide-react';
 
 interface LiveExecutionProps {
   experiments: ExperimentModel[];
@@ -30,6 +30,7 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
             const isActive = exp.id === currentExperimentId;
             const isCompleted = exp.status === 'completed';
             const progress = exp.progress || 0;
+            const liveMetrics = exp.liveMetrics;
 
             return (
               <div key={exp.id} className={`relative flex items-center gap-4 transition-all duration-300 ${isActive ? 'scale-102' : 'opacity-90'}`}>
@@ -47,7 +48,7 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
                   {isCompleted ? <CheckCircle2 size={20} /> : isActive ? <Loader2 className="animate-spin" size={20} /> : <Circle size={20} />}
                 </div>
                 
-                <div className={`flex-1 p-4 rounded-lg border transition-all duration-300 ${isActive ? 'bg-blue-500/10 border-blue-500/30' : 'bg-slate-700/20 border-transparent'}`}>
+                <div className={`flex-1 p-4 rounded-lg border transition-all duration-300 ${isActive ? 'bg-blue-500/10 border-blue-500/30 shadow-inner' : 'bg-slate-700/20 border-transparent'}`}>
                   <div className="flex justify-between items-center mb-2">
                     <span className={`font-medium text-sm ${isActive ? 'text-blue-200' : 'text-slate-300'}`}>{exp.name}</span>
                     <span className={`text-xs font-mono uppercase ${isActive ? 'text-blue-400' : 'text-slate-500'}`}>
@@ -56,7 +57,7 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
                   </div>
                   
                   {/* Progress Bar */}
-                  <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden mb-3">
                     <div 
                       className={`h-full rounded-full transition-all duration-500 ease-out ${isCompleted ? 'bg-green-500' : 'bg-blue-500 relative'}`}
                       style={{ width: `${progress}%` }}
@@ -67,11 +68,33 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
                     </div>
                   </div>
                   
-                  {/* Mini Stats (visible only when active or completed) */}
+                  {/* Real-time Metrics Display */}
+                  {(isActive || isCompleted) && liveMetrics && (
+                    <div className="grid grid-cols-2 gap-4 mt-2 p-2 bg-black/20 rounded border border-slate-700/50 animate-fade-in">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
+                          <Target size={10} className="text-blue-400" /> Accuracy
+                        </span>
+                        <span className={`text-xs font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-blue-300'}`}>
+                          {(liveMetrics.accuracy * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
+                          <Zap size={10} className="text-amber-400" /> Latency
+                        </span>
+                        <span className={`text-xs font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-amber-300'}`}>
+                          {liveMetrics.latencyMs.toFixed(0)}ms
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mini Infrastructure Stats */}
                   {(isActive || isCompleted) && (
-                    <div className="flex gap-4 mt-2 text-xs text-slate-400 animate-fade-in">
-                       <span className="flex items-center gap-1"><Cpu size={10} /> {(progress > 30 || isCompleted) ? 'Active' : 'Allocating'}</span>
-                       <span className="flex items-center gap-1"><Database size={10} /> {(progress > 10 || isCompleted) ? 'Loaded' : 'Pending'}</span>
+                    <div className="flex gap-4 mt-2 text-[10px] text-slate-500 animate-fade-in border-t border-slate-700/30 pt-2">
+                       <span className="flex items-center gap-1 uppercase"><Cpu size={10} /> {(progress > 30 || isCompleted) ? 'Compute: OK' : 'Allocating'}</span>
+                       <span className="flex items-center gap-1 uppercase"><Database size={10} /> {(progress > 10 || isCompleted) ? 'Data: Sync' : 'Waiting'}</span>
                     </div>
                   )}
                 </div>

@@ -21,6 +21,10 @@ export interface ExperimentModel {
     latencyMs: number;
     modelSizeMb: number;
   };
+  liveMetrics?: {
+    accuracy: number;
+    latencyMs: number;
+  };
   status: 'pending' | 'running' | 'completed';
   progress: number; // 0-100
 }
