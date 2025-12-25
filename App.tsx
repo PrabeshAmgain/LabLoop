@@ -14,6 +14,9 @@ const App: React.FC = () => {
   const [currentExperimentId, setCurrentExperimentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Check if API KEY is available
+  const isApiKeyMissing = !process.env.API_KEY;
+
   // Helper to add logs
   const addLog = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setLogs(prev => [...prev, {
@@ -25,6 +28,8 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async (goal: string) => {
+    if (isApiKeyMissing) return;
+    
     setStatus(ExperimentStatus.PLANNING);
     setError(null);
     setPlan(null);
@@ -37,7 +42,7 @@ const App: React.FC = () => {
       setStatus(ExperimentStatus.EXECUTING);
     } catch (err: any) {
       console.error(err);
-      setError("Failed to generate experiment plan. Please check your API key and try again.");
+      setError("Failed to generate experiment plan. Please check your API configuration and try again.");
       setStatus(ExperimentStatus.IDLE);
     }
   };
@@ -229,7 +234,11 @@ const App: React.FC = () => {
                     Compare models, analyze trade-offs, and find the optimal solution for your data.
                  </p>
               </div>
-              <InputSection onGenerate={handleGenerate} isLoading={status === ExperimentStatus.PLANNING} />
+              <InputSection 
+                onGenerate={handleGenerate} 
+                isLoading={status === ExperimentStatus.PLANNING} 
+                isDisabled={isApiKeyMissing}
+              />
               
               {error && (
                 <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm max-w-md animate-shake">
