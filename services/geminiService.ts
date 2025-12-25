@@ -77,7 +77,8 @@ export const generateExperimentPlan = async (goal: string): Promise<ExperimentPl
         progress: 0,
         liveMetrics: {
           accuracy: 0,
-          latencyMs: 0
+          latencyMs: 0,
+          modelSizeMb: 0
         }
       }))
     };

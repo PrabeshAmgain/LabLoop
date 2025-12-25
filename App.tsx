@@ -53,7 +53,7 @@ const App: React.FC = () => {
     updates: { 
       progress?: number; 
       status?: 'pending' | 'running' | 'completed'; 
-      liveMetrics?: { accuracy: number; latencyMs: number } 
+      liveMetrics?: { accuracy: number; latencyMs: number; modelSizeMb: number } 
     }
   ) => {
     setPlan(prev => {
@@ -89,6 +89,7 @@ const App: React.FC = () => {
         const exp = plan.experiments[i];
         const finalAcc = exp.simulatedMetrics.accuracy;
         const finalLat = exp.simulatedMetrics.latencyMs;
+        const finalSize = exp.simulatedMetrics.modelSizeMb;
         
         // 1. Initialization (0%)
         timeoutIds.push(setTimeout(() => {
@@ -122,7 +123,7 @@ const App: React.FC = () => {
            const currentLat = finalLat * (1.5 + Math.random() * 0.5);
            updateExperimentState(exp.id, { 
              progress: 45, 
-             liveMetrics: { accuracy: currentAcc, latencyMs: currentLat } 
+             liveMetrics: { accuracy: currentAcc, latencyMs: currentLat, modelSizeMb: finalSize } 
            });
            addLog(`[${exp.name}] Starting training loop. Batch size: 32`, "info");
         }, delayOffset));
@@ -135,7 +136,7 @@ const App: React.FC = () => {
            const currentLat = finalLat * (1.2 + Math.random() * 0.2);
            updateExperimentState(exp.id, { 
              progress: 60,
-             liveMetrics: { accuracy: currentAcc, latencyMs: currentLat }
+             liveMetrics: { accuracy: currentAcc, latencyMs: currentLat, modelSizeMb: finalSize }
            });
            const loss = (Math.random() * 0.5 + 0.3).toFixed(4);
            addLog(`[${exp.name}] Epoch 1/10 | Loss: ${loss} | Acc: ${currentAcc.toFixed(2)}`, "info");
@@ -149,7 +150,7 @@ const App: React.FC = () => {
            const currentLat = finalLat * (1.05 + Math.random() * 0.05);
            updateExperimentState(exp.id, { 
              progress: 75,
-             liveMetrics: { accuracy: currentAcc, latencyMs: currentLat }
+             liveMetrics: { accuracy: currentAcc, latencyMs: currentLat, modelSizeMb: finalSize }
            });
            const loss = (Math.random() * 0.2 + 0.1).toFixed(4);
            addLog(`[${exp.name}] Epoch 10/10 | Loss: ${loss} | Acc: ${currentAcc.toFixed(2)}`, "info");
@@ -161,7 +162,7 @@ const App: React.FC = () => {
            if (!isMounted) return;
            updateExperimentState(exp.id, { 
              progress: 90,
-             liveMetrics: { accuracy: finalAcc * 0.98, latencyMs: finalLat }
+             liveMetrics: { accuracy: finalAcc * 0.98, latencyMs: finalLat, modelSizeMb: finalSize }
            });
            addLog(`[${exp.name}] Evaluating on validation set...`, "warning");
         }, delayOffset));
@@ -173,7 +174,7 @@ const App: React.FC = () => {
           updateExperimentState(exp.id, { 
             progress: 100, 
             status: 'completed',
-            liveMetrics: { accuracy: finalAcc, latencyMs: finalLat }
+            liveMetrics: { accuracy: finalAcc, latencyMs: finalLat, modelSizeMb: finalSize }
           });
           addLog(`Completed ${exp.name}. Final Accuracy: ${(finalAcc * 100).toFixed(1)}%`, "success");
         }, delayOffset));

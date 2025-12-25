@@ -70,21 +70,29 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
                   
                   {/* Real-time Metrics Display */}
                   {(isActive || isCompleted) && liveMetrics && (
-                    <div className="grid grid-cols-2 gap-4 mt-2 p-2 bg-black/20 rounded border border-slate-700/50 animate-fade-in">
+                    <div className="grid grid-cols-3 gap-2 mt-2 p-2 bg-black/20 rounded border border-slate-700/50 animate-fade-in">
                       <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
-                          <Target size={10} className="text-blue-400" /> Accuracy
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
+                          <Target size={10} className="text-blue-400" /> Acc
                         </span>
-                        <span className={`text-xs font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-blue-300'}`}>
+                        <span className={`text-[11px] font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-blue-300'}`}>
                           {(liveMetrics.accuracy * 100).toFixed(1)}%
                         </span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
-                          <Zap size={10} className="text-amber-400" /> Latency
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
+                          <Zap size={10} className="text-amber-400" /> Lat
                         </span>
-                        <span className={`text-xs font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-amber-300'}`}>
+                        <span className={`text-[11px] font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-amber-300'}`}>
                           {liveMetrics.latencyMs.toFixed(0)}ms
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
+                          <Database size={10} className="text-purple-400" /> Size
+                        </span>
+                        <span className={`text-[11px] font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-purple-300'}`}>
+                          {liveMetrics.modelSizeMb > 0 ? `${liveMetrics.modelSizeMb}MB` : '---'}
                         </span>
                       </div>
                     </div>
