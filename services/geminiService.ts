@@ -1,6 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ExperimentPlan } from '../types';
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const generateExperimentPlan = async (goal: string): Promise<ExperimentPlan> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
@@ -8,6 +10,8 @@ export const generateExperimentPlan = async (goal: string): Promise<ExperimentPl
   }
 
   const ai = new GoogleGenAI({ apiKey });
+  const maxRetries = 3;
+  let lastError: any;
 
   const prompt = `
     You are an expert Machine Learning Engineer and Data Scientist.
@@ -22,68 +26,80 @@ export const generateExperimentPlan = async (goal: string): Promise<ExperimentPl
     Return the response strictly as a JSON object matching the schema.
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: prompt,
-    config: {
-      thinkingConfig: { thinkingBudget: 2048 },
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          planTitle: { type: Type.STRING, description: "A catchy title for the experiment suite" },
-          goalAnalysis: { type: Type.STRING, description: "Brief analysis of what the user wants to achieve" },
-          experiments: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                name: { type: Type.STRING, description: "Name of the model/algorithm (e.g. ResNet50)" },
-                description: { type: Type.STRING, description: "Why this model was chosen" },
-                simulatedMetrics: {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: prompt,
+        config: {
+          thinkingConfig: { thinkingBudget: 2048 },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              planTitle: { type: Type.STRING, description: "A catchy title for the experiment suite" },
+              goalAnalysis: { type: Type.STRING, description: "Brief analysis of what the user wants to achieve" },
+              experiments: {
+                type: Type.ARRAY,
+                items: {
                   type: Type.OBJECT,
                   properties: {
-                    accuracy: { type: Type.NUMBER, description: "Value between 0 and 1" },
-                    latencyMs: { type: Type.NUMBER },
-                    modelSizeMb: { type: Type.NUMBER }
+                    id: { type: Type.STRING },
+                    name: { type: Type.STRING, description: "Name of the model/algorithm (e.g. ResNet50)" },
+                    description: { type: Type.STRING, description: "Why this model was chosen" },
+                    simulatedMetrics: {
+                      type: Type.OBJECT,
+                      properties: {
+                        accuracy: { type: Type.NUMBER, description: "Value between 0 and 1" },
+                        latencyMs: { type: Type.NUMBER },
+                        modelSizeMb: { type: Type.NUMBER }
+                      },
+                      required: ["accuracy", "latencyMs", "modelSizeMb"]
+                    }
                   },
-                  required: ["accuracy", "latencyMs", "modelSizeMb"]
+                  required: ["id", "name", "description", "simulatedMetrics"]
                 }
               },
-              required: ["id", "name", "description", "simulatedMetrics"]
-            }
-          },
-          recommendedWinnerId: { type: Type.STRING },
-          summary: { type: Type.STRING, description: "A concluding insight about the best model" }
-        },
-        required: ["planTitle", "goalAnalysis", "experiments", "recommendedWinnerId", "summary"]
+              recommendedWinnerId: { type: Type.STRING },
+              summary: { type: Type.STRING, description: "A concluding insight about the best model" }
+            },
+            required: ["planTitle", "goalAnalysis", "experiments", "recommendedWinnerId", "summary"]
+          }
+        }
+      });
+
+      if (!response.text) {
+        throw new Error("No response from Gemini");
+      }
+
+      const data = JSON.parse(response.text);
+      // Add initial status and progress to the parsed data
+      return {
+        ...data,
+        experiments: data.experiments.map((exp: any) => ({ 
+          ...exp, 
+          status: 'pending',
+          progress: 0,
+          liveMetrics: {
+            accuracy: 0,
+            latencyMs: 0,
+            modelSizeMb: 0
+          }
+        }))
+      };
+
+    } catch (e: any) {
+      lastError = e;
+      // If we still have retry attempts left, wait and try again
+      if (attempt < maxRetries) {
+        const backoffMs = Math.pow(2, attempt) * 1000;
+        console.warn(`Experiment generation failed (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${backoffMs}ms...`, e);
+        await wait(backoffMs);
+      } else {
+        console.error("Max retries reached for experiment generation.", e);
       }
     }
-  });
-
-  if (!response.text) {
-    throw new Error("No response from Gemini");
   }
 
-  try {
-    const data = JSON.parse(response.text);
-    // Add initial status and progress to the parsed data
-    return {
-      ...data,
-      experiments: data.experiments.map((exp: any) => ({ 
-        ...exp, 
-        status: 'pending',
-        progress: 0,
-        liveMetrics: {
-          accuracy: 0,
-          latencyMs: 0,
-          modelSizeMb: 0
-        }
-      }))
-    };
-  } catch (e) {
-    console.error("Failed to parse Gemini response", e);
-    throw new Error("Invalid JSON response from Gemini");
-  }
+  throw lastError || new Error("Failed to generate experiment plan after multiple attempts.");
 };
