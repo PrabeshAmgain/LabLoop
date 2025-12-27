@@ -1,17 +1,83 @@
-import React from 'react';
-import { ExperimentPlan } from '../types';
-import { Trophy, BarChart3, Clock, Database, Zap, Activity } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ExperimentPlan, ExperimentModel } from '../types';
+import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, ListFilter } from 'lucide-react';
 
 interface ResultsViewProps {
   plan: ExperimentPlan;
 }
 
+type SortField = 'name' | 'accuracy' | 'latency' | 'size';
+type SortDirection = 'asc' | 'desc';
+
 export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
+  const [sortField, setSortField] = useState<SortField>('accuracy');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [minAccuracy, setMinAccuracy] = useState<number>(0);
+
   const winner = plan.experiments.find(e => e.id === plan.recommendedWinnerId) || plan.experiments[0];
   
   // Calculate max values for scaling the bars relative to the dataset
   const maxLatency = Math.max(...plan.experiments.map(e => e.simulatedMetrics.latencyMs));
   const maxSize = Math.max(...plan.experiments.map(e => e.simulatedMetrics.modelSizeMb));
+
+  const handleDownloadModel = (modelName: string) => {
+    // Dummy download implementation
+    const dummyContent = `LabLoop Model Weights: ${modelName}\nStatus: Simulated\nMetrics: Ready for deployment.`;
+    const blob = new Blob([dummyContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${modelName.toLowerCase().replace(/\s+/g, '_')}_weights.bin`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const filteredAndSortedExperiments = useMemo(() => {
+    return [...plan.experiments]
+      .filter(exp => (exp.simulatedMetrics.accuracy * 100) >= minAccuracy)
+      .sort((a, b) => {
+        let valA: any, valB: any;
+        
+        switch (sortField) {
+          case 'name':
+            valA = a.name.toLowerCase();
+            valB = b.name.toLowerCase();
+            break;
+          case 'accuracy':
+            valA = a.simulatedMetrics.accuracy;
+            valB = b.simulatedMetrics.accuracy;
+            break;
+          case 'latency':
+            valA = a.simulatedMetrics.latencyMs;
+            valB = b.simulatedMetrics.latencyMs;
+            break;
+          case 'size':
+            valA = a.simulatedMetrics.modelSizeMb;
+            valB = b.simulatedMetrics.modelSizeMb;
+            break;
+        }
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [plan.experiments, sortField, sortDirection, minAccuracy]);
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ChevronUp size={14} className="opacity-0 group-hover:opacity-30" />;
+    return sortDirection === 'asc' ? <ChevronUp size={14} className="text-blue-400" /> : <ChevronDown size={14} className="text-blue-400" />;
+  };
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in-up">
@@ -83,7 +149,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
                     const isWinner = exp.id === plan.recommendedWinnerId;
-                    // Calculate width relative to max latency
                     const widthPct = (exp.simulatedMetrics.latencyMs / maxLatency) * 100;
                     return (
                         <div key={exp.id}>
@@ -112,7 +177,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
                     const isWinner = exp.id === plan.recommendedWinnerId;
-                    // Calculate width relative to max size
                     const widthPct = (exp.simulatedMetrics.modelSizeMb / maxSize) * 100;
                     return (
                         <div key={exp.id}>
@@ -134,60 +198,124 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
 
       </div>
 
-      {/* Comparison Table */}
+      {/* Comparison Table with Filtering and Sorting */}
       <div className="bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
-        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <BarChart3 className="text-blue-400" />
-                Benchmark Results
-            </h3>
+        <div className="p-6 border-b border-slate-700 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <BarChart3 className="text-blue-400" />
+                    Benchmark Results
+                </h3>
+                
+                <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-2 text-slate-400">
+                        <Filter size={14} className="text-slate-500" />
+                        <span>Min Accuracy:</span>
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            value={minAccuracy}
+                            onChange={(e) => setMinAccuracy(parseInt(e.target.value))}
+                            className="accent-blue-500 w-24 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="font-mono text-blue-400 min-w-[3ch]">{minAccuracy}%</span>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-900/50 text-slate-400 text-sm uppercase tracking-wider">
-                <th className="p-4 font-semibold">Model Name</th>
-                <th className="p-4 font-semibold text-right">Accuracy</th>
-                <th className="p-4 font-semibold text-right">Latency</th>
-                <th className="p-4 font-semibold text-right">Model Size</th>
+              <tr className="bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider select-none">
+                <th 
+                  className="p-4 font-semibold cursor-pointer hover:text-white transition-colors group"
+                  onClick={() => handleSort('name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Model Name <SortIcon field="name" />
+                  </div>
+                </th>
+                <th 
+                  className="p-4 font-semibold text-right cursor-pointer hover:text-white transition-colors group"
+                  onClick={() => handleSort('accuracy')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Accuracy <SortIcon field="accuracy" />
+                  </div>
+                </th>
+                <th 
+                  className="p-4 font-semibold text-right cursor-pointer hover:text-white transition-colors group"
+                  onClick={() => handleSort('latency')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Latency <SortIcon field="latency" />
+                  </div>
+                </th>
+                <th 
+                  className="p-4 font-semibold text-right cursor-pointer hover:text-white transition-colors group"
+                  onClick={() => handleSort('size')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Size <SortIcon field="size" />
+                  </div>
+                </th>
+                <th className="p-4 font-semibold text-center w-24">Export</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {plan.experiments.map((exp) => {
-                const isWinner = exp.id === plan.recommendedWinnerId;
-                return (
-                  <tr key={exp.id} className={`hover:bg-slate-700/30 transition-colors ${isWinner ? 'bg-emerald-900/10' : ''}`}>
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                         {isWinner && <Trophy size={16} className="text-emerald-500" />}
-                         <span className={`font-medium ${isWinner ? 'text-emerald-400' : 'text-slate-200'}`}>{exp.name}</span>
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1 truncate max-w-xs">{exp.description}</div>
-                    </td>
-                    <td className="p-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                             <div className="w-24 bg-slate-700 rounded-full h-2 overflow-hidden">
-                                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${exp.simulatedMetrics.accuracy * 100}%` }}></div>
-                             </div>
-                             <span className="font-mono text-slate-300">{(exp.simulatedMetrics.accuracy * 100).toFixed(1)}%</span>
+              {filteredAndSortedExperiments.length > 0 ? (
+                filteredAndSortedExperiments.map((exp) => {
+                  const isWinner = exp.id === plan.recommendedWinnerId;
+                  return (
+                    <tr key={exp.id} className={`hover:bg-slate-700/30 transition-colors ${isWinner ? 'bg-emerald-900/10' : ''}`}>
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                           {isWinner && <Trophy size={16} className="text-emerald-500" />}
+                           <span className={`font-medium ${isWinner ? 'text-emerald-400' : 'text-slate-200'}`}>{exp.name}</span>
                         </div>
-                    </td>
-                    <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2 text-slate-300">
-                             <Zap size={14} className="text-yellow-500" />
-                             <span className="font-mono">{exp.simulatedMetrics.latencyMs} ms</span>
-                        </div>
-                    </td>
-                    <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2 text-slate-300">
-                             <Database size={14} className="text-purple-500" />
-                             <span className="font-mono">{exp.simulatedMetrics.modelSizeMb} MB</span>
-                        </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                        <div className="text-xs text-slate-500 mt-1 truncate max-w-[200px] md:max-w-xs">{exp.description}</div>
+                      </td>
+                      <td className="p-4 text-right">
+                          <div className="inline-flex items-center gap-2">
+                               <div className="hidden sm:block w-20 lg:w-24 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${exp.simulatedMetrics.accuracy * 100}%` }}></div>
+                               </div>
+                               <span className="font-mono text-slate-300">{(exp.simulatedMetrics.accuracy * 100).toFixed(1)}%</span>
+                          </div>
+                      </td>
+                      <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2 text-slate-300">
+                               <Zap size={14} className="text-yellow-500" />
+                               <span className="font-mono">{exp.simulatedMetrics.latencyMs} ms</span>
+                          </div>
+                      </td>
+                      <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2 text-slate-300">
+                               <Database size={14} className="text-purple-500" />
+                               <span className="font-mono">{exp.simulatedMetrics.modelSizeMb} MB</span>
+                          </div>
+                      </td>
+                      <td className="p-4 text-center">
+                          <button 
+                            onClick={() => handleDownloadModel(exp.name)}
+                            className="p-2 rounded-lg bg-slate-700/50 hover:bg-blue-600/40 text-slate-400 hover:text-blue-400 transition-all border border-slate-600 hover:border-blue-500/50 group"
+                            title="Download Model Weights"
+                          >
+                            <Download size={18} className="group-active:scale-90 transition-transform" />
+                          </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-12 text-center text-slate-500 italic">
+                    No experiments matching the current filters.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
