@@ -9,10 +9,17 @@ interface LiveExecutionProps {
 }
 
 export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs, currentExperimentId }) => {
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom whenever logs change
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
   }, [logs]);
 
   return (
@@ -118,13 +125,25 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
           <Terminal size={16} className="text-slate-400" />
           <span className="text-slate-300 font-medium">System Logs</span>
           <div className="flex-1"></div>
+          {currentExperimentId && (
+            <div className="flex items-center gap-2 mr-4">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Live</span>
+            </div>
+          )}
           <div className="flex gap-1.5 opacity-60">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
             <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide font-mono leading-relaxed">
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide font-mono leading-relaxed scroll-smooth"
+        >
           {logs.length === 0 && <span className="text-slate-600 italic">Waiting for execution to start...</span>}
           {logs.map((log) => (
             <div key={log.id} className="flex gap-3 animate-fade-in-right hover:bg-slate-900/50 p-0.5 rounded">
@@ -140,7 +159,6 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
               </span>
             </div>
           ))}
-          <div ref={logsEndRef} />
         </div>
       </div>
     </div>
