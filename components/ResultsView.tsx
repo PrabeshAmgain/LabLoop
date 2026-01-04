@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ExperimentPlan, ExperimentModel } from '../types';
-import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, ListFilter } from 'lucide-react';
+import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, Info } from 'lucide-react';
 
 interface ResultsViewProps {
   plan: ExperimentPlan;
@@ -9,6 +9,17 @@ interface ResultsViewProps {
 type SortField = 'name' | 'accuracy' | 'latency' | 'size';
 type SortDirection = 'asc' | 'desc';
 
+const MetricTooltip: React.FC<{ title: string; content: string }> = ({ title, content }) => (
+  <div className="group relative inline-block ml-1.5">
+    <Info size={14} className="text-slate-500 hover:text-blue-400 transition-colors cursor-help" />
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-900 border border-slate-700 rounded-lg shadow-xl text-[11px] text-slate-300 leading-tight opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+      <p className="font-bold text-white mb-1">{title}</p>
+      {content}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-700"></div>
+    </div>
+  </div>
+);
+
 export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   const [sortField, setSortField] = useState<SortField>('accuracy');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -16,12 +27,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
 
   const winner = plan.experiments.find(e => e.id === plan.recommendedWinnerId) || plan.experiments[0];
   
-  // Calculate max values for scaling the bars relative to the dataset
   const maxLatency = Math.max(...plan.experiments.map(e => e.simulatedMetrics.latencyMs));
   const maxSize = Math.max(...plan.experiments.map(e => e.simulatedMetrics.modelSizeMb));
 
   const handleDownloadModel = (modelName: string) => {
-    // Dummy download implementation
     const dummyContent = `LabLoop Model Weights: ${modelName}\nStatus: Simulated\nMetrics: Ready for deployment.`;
     const blob = new Blob([dummyContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -116,7 +125,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
         <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col">
             <div className="flex items-center gap-2 mb-4 text-blue-400">
                 <Activity size={20} />
-                <h3 className="font-semibold">Accuracy Comparison</h3>
+                <h3 className="font-semibold">Accuracy</h3>
+                <MetricTooltip title="Accuracy" content="The percentage of correct predictions. Higher is better for model reliability." />
             </div>
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
@@ -144,7 +154,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
         <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col">
             <div className="flex items-center gap-2 mb-4 text-amber-400">
                 <Zap size={20} />
-                <h3 className="font-semibold">Latency (Lower is better)</h3>
+                <h3 className="font-semibold">Latency</h3>
+                <MetricTooltip title="Latency" content="Processing time per request in milliseconds. Lower is better, especially for real-time applications." />
             </div>
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
@@ -173,6 +184,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
             <div className="flex items-center gap-2 mb-4 text-purple-400">
                 <Database size={20} />
                 <h3 className="font-semibold">Model Size</h3>
+                <MetricTooltip title="Model Size" content="Memory footprint in Megabytes. Crucial for deployment on edge devices or mobile hardware." />
             </div>
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
@@ -242,7 +254,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                   onClick={() => handleSort('accuracy')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Accuracy <SortIcon field="accuracy" />
+                    Accuracy <MetricTooltip title="Accuracy" content="Percentage of correct predictions over the validation dataset." /> <SortIcon field="accuracy" />
                   </div>
                 </th>
                 <th 
@@ -250,7 +262,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                   onClick={() => handleSort('latency')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Latency <SortIcon field="latency" />
+                    Latency <MetricTooltip title="Latency" content="Average inference time per request measured in milliseconds." /> <SortIcon field="latency" />
                   </div>
                 </th>
                 <th 
@@ -258,7 +270,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                   onClick={() => handleSort('size')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Size <SortIcon field="size" />
+                    Size <MetricTooltip title="Model Size" content="Compressed storage size of the final model weights." /> <SortIcon field="size" />
                   </div>
                 </th>
                 <th className="p-4 font-semibold text-center w-24">Export</th>
