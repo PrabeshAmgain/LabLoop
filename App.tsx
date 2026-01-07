@@ -5,7 +5,7 @@ import { InputSection } from './components/InputSection';
 import { ExperimentPlanner } from './components/ExperimentPlanner';
 import { LiveExecution } from './components/LiveExecution';
 import { ResultsView } from './components/ResultsView';
-import { Activity } from 'lucide-react';
+import { Activity, AlertTriangle, RefreshCcw, XCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<ExperimentStatus>(ExperimentStatus.IDLE);
@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentExperimentId, setCurrentExperimentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastGoal, setLastGoal] = useState<string>('');
 
   // Check if API KEY is available
   const isApiKeyMissing = !process.env.API_KEY;
@@ -30,6 +31,7 @@ const App: React.FC = () => {
   const handleGenerate = async (goal: string) => {
     if (isApiKeyMissing) return;
     
+    setLastGoal(goal);
     setStatus(ExperimentStatus.PLANNING);
     setError(null);
     setPlan(null);
@@ -42,8 +44,27 @@ const App: React.FC = () => {
       setStatus(ExperimentStatus.EXECUTING);
     } catch (err: any) {
       console.error(err);
-      setError("Failed to generate experiment plan. Please check your API configuration and try again.");
+      let friendlyMessage = "We encountered an unexpected error while designing your experiment suite.";
+      
+      if (err.message?.includes("API Key")) {
+        friendlyMessage = "The Gemini API Key is invalid or missing. Please check your environment configuration.";
+      } else if (err.message?.includes("safety")) {
+        friendlyMessage = "The experiment plan was blocked by safety filters. Try phrasing your goal differently.";
+      } else if (err.message?.includes("quota") || err.message?.includes("429")) {
+        friendlyMessage = "API quota exceeded. Please wait a moment before trying again.";
+      }
+
+      setError(friendlyMessage);
+      setStatus(ExperimentStatus.ERROR);
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastGoal) {
+      handleGenerate(lastGoal);
+    } else {
       setStatus(ExperimentStatus.IDLE);
+      setError(null);
     }
   };
 
@@ -224,7 +245,7 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-6 py-12">
         
         {/* State: Idle / Planning */}
-        {(status === ExperimentStatus.IDLE || status === ExperimentStatus.PLANNING) && (
+        {(status === ExperimentStatus.IDLE || status === ExperimentStatus.PLANNING || status === ExperimentStatus.ERROR) && (
            <div className="flex flex-col items-center justify-center min-h-[60vh]">
               <div className="text-center mb-10 space-y-4">
                  <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
@@ -235,16 +256,43 @@ const App: React.FC = () => {
                     Compare models, analyze trade-offs, and find the optimal solution for your data.
                  </p>
               </div>
-              <InputSection 
-                onGenerate={handleGenerate} 
-                isLoading={status === ExperimentStatus.PLANNING} 
-                isDisabled={isApiKeyMissing}
-              />
-              
-              {error && (
-                <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm max-w-md animate-shake">
-                    {error}
+
+              {status === ExperimentStatus.ERROR ? (
+                <div className="w-full max-w-2xl animate-fade-in-up">
+                  <div className="bg-red-500/10 border-2 border-red-500/30 rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center space-y-6">
+                    <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500">
+                      <AlertTriangle size={32} />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-red-100 mb-2">Experiment Failed</h2>
+                      <p className="text-red-200/70 max-w-md mx-auto leading-relaxed">
+                        {error || "An unexpected error occurred during the experimentation process."}
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button 
+                        onClick={handleRetry}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-red-600/20 active:scale-95"
+                      >
+                        <RefreshCcw size={18} />
+                        Retry Operation
+                      </button>
+                      <button 
+                        onClick={() => { setStatus(ExperimentStatus.IDLE); setError(null); }}
+                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-8 rounded-xl transition-all border border-slate-700 active:scale-95"
+                      >
+                        <XCircle size={18} />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                <InputSection 
+                  onGenerate={handleGenerate} 
+                  isLoading={status === ExperimentStatus.PLANNING} 
+                  isDisabled={isApiKeyMissing}
+                />
               )}
            </div>
         )}
