@@ -9,16 +9,37 @@ interface ResultsViewProps {
 type SortField = 'name' | 'accuracy' | 'latency' | 'size';
 type SortDirection = 'asc' | 'desc';
 
+/**
+ * Enhanced Tooltip component for ML metrics
+ */
 const MetricTooltip: React.FC<{ title: string; content: string }> = ({ title, content }) => (
   <div className="group relative inline-block ml-1.5">
-    <Info size={14} className="text-slate-500 hover:text-blue-400 transition-colors cursor-help" />
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-900 border border-slate-700 rounded-lg shadow-xl text-[11px] text-slate-300 leading-tight opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
-      <p className="font-bold text-white mb-1">{title}</p>
+    <div className="p-0.5 rounded-full hover:bg-blue-500/20 transition-colors cursor-help">
+      <Info size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors" />
+    </div>
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-3 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl text-[11px] text-slate-300 leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none transform translate-y-1 group-hover:translate-y-0">
+      <p className="font-bold text-blue-400 mb-1.5 uppercase tracking-wider text-[10px]">{title}</p>
       {content}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-700"></div>
+      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900/95"></div>
     </div>
   </div>
 );
+
+// Unified Metric Descriptions
+const METRIC_INFO = {
+  accuracy: {
+    title: "Accuracy (Validation)",
+    description: "The proportion of total predictions that were correct. In ML research, this measures how well the model generalizes to unseen validation data rather than just memorizing training patterns."
+  },
+  latency: {
+    title: "Inference Latency",
+    description: "The time required (ms) to process a single input and return a prediction. Low latency is critical for real-time applications like voice interaction, gesture control, or financial high-frequency trading."
+  },
+  size: {
+    title: "Model Footprint",
+    description: "The storage space occupied by the model's weights and architecture. Smaller models are essential for 'On-Device' AI, enabling deployment on smartphones, IoT sensors, and edge hardware with limited RAM."
+  }
+};
 
 export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   const [sortField, setSortField] = useState<SortField>('accuracy');
@@ -126,7 +147,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
             <div className="flex items-center gap-2 mb-4 text-blue-400">
                 <Activity size={20} />
                 <h3 className="font-semibold">Accuracy</h3>
-                <MetricTooltip title="Accuracy" content="The percentage of correct predictions. Higher is better for model reliability." />
+                <MetricTooltip title={METRIC_INFO.accuracy.title} content={METRIC_INFO.accuracy.description} />
             </div>
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
@@ -155,7 +176,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
             <div className="flex items-center gap-2 mb-4 text-amber-400">
                 <Zap size={20} />
                 <h3 className="font-semibold">Latency</h3>
-                <MetricTooltip title="Latency" content="Processing time per request in milliseconds. Lower is better, especially for real-time applications." />
+                <MetricTooltip title={METRIC_INFO.latency.title} content={METRIC_INFO.latency.description} />
             </div>
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
@@ -184,7 +205,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
             <div className="flex items-center gap-2 mb-4 text-purple-400">
                 <Database size={20} />
                 <h3 className="font-semibold">Model Size</h3>
-                <MetricTooltip title="Model Size" content="Memory footprint in Megabytes. Crucial for deployment on edge devices or mobile hardware." />
+                <MetricTooltip title={METRIC_INFO.size.title} content={METRIC_INFO.size.description} />
             </div>
             <div className="space-y-4 flex-1">
                 {plan.experiments.map(exp => {
@@ -254,7 +275,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                   onClick={() => handleSort('accuracy')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Accuracy <MetricTooltip title="Accuracy" content="Percentage of correct predictions over the validation dataset." /> <SortIcon field="accuracy" />
+                    Accuracy 
+                    <MetricTooltip title={METRIC_INFO.accuracy.title} content={METRIC_INFO.accuracy.description} /> 
+                    <SortIcon field="accuracy" />
                   </div>
                 </th>
                 <th 
@@ -262,7 +285,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                   onClick={() => handleSort('latency')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Latency <MetricTooltip title="Latency" content="Average inference time per request measured in milliseconds." /> <SortIcon field="latency" />
+                    Latency 
+                    <MetricTooltip title={METRIC_INFO.latency.title} content={METRIC_INFO.latency.description} /> 
+                    <SortIcon field="latency" />
                   </div>
                 </th>
                 <th 
@@ -270,7 +295,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                   onClick={() => handleSort('size')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Size <MetricTooltip title="Model Size" content="Compressed storage size of the final model weights." /> <SortIcon field="size" />
+                    Size 
+                    <MetricTooltip title={METRIC_INFO.size.title} content={METRIC_INFO.size.description} /> 
+                    <SortIcon field="size" />
                   </div>
                 </th>
                 <th className="p-4 font-semibold text-center w-24">Export</th>
