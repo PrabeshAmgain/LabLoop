@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ExperimentPlan, ExperimentModel } from '../types';
-import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, Info } from 'lucide-react';
+import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, Info, FileCode, Box, Layers } from 'lucide-react';
 
 interface ResultsViewProps {
   plan: ExperimentPlan;
@@ -8,6 +8,7 @@ interface ResultsViewProps {
 
 type SortField = 'name' | 'accuracy' | 'latency' | 'size';
 type SortDirection = 'asc' | 'desc';
+type ExportFormat = 'onnx' | 'tflite' | 'weights';
 
 /**
  * Enhanced Tooltip component for ML metrics
@@ -45,23 +46,55 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   const [sortField, setSortField] = useState<SortField>('accuracy');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [minAccuracy, setMinAccuracy] = useState<number>(0);
+  const [activeExportId, setActiveExportId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveExportId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const winner = plan.experiments.find(e => e.id === plan.recommendedWinnerId) || plan.experiments[0];
   
   const maxLatency = Math.max(...plan.experiments.map(e => e.simulatedMetrics.latencyMs));
   const maxSize = Math.max(...plan.experiments.map(e => e.simulatedMetrics.modelSizeMb));
 
-  const handleDownloadModel = (modelName: string) => {
-    const dummyContent = `LabLoop Model Weights: ${modelName}\nStatus: Simulated\nMetrics: Ready for deployment.`;
-    const blob = new Blob([dummyContent], { type: 'text/plain' });
+  const handleExport = (modelName: string, format: ExportFormat) => {
+    let extension = '';
+    let description = '';
+    
+    switch (format) {
+      case 'onnx':
+        extension = 'onnx';
+        description = 'Open Neural Network Exchange format for cross-platform inference.';
+        break;
+      case 'tflite':
+        extension = 'tflite';
+        description = 'TensorFlow Lite format optimized for mobile and edge devices.';
+        break;
+      case 'weights':
+        extension = 'bin';
+        description = 'Raw model weights and metadata.';
+        break;
+    }
+
+    const dummyContent = `LabLoop Export\nModel: ${modelName}\nFormat: ${format.toUpperCase()}\nDescription: ${description}\n\n[SIMULATED BINARY DATA]`;
+    const blob = new Blob([dummyContent], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${modelName.toLowerCase().replace(/\s+/g, '_')}_weights.bin`;
+    link.download = `${modelName.toLowerCase().replace(/\s+/g, '_')}.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    setActiveExportId(null);
   };
 
   const handleSort = (field: SortField) => {
@@ -300,13 +333,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                     <SortIcon field="size" />
                   </div>
                 </th>
-                <th className="p-4 font-semibold text-center w-24">Export</th>
+                <th className="p-4 font-semibold text-center w-32">Export</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
               {filteredAndSortedExperiments.length > 0 ? (
                 filteredAndSortedExperiments.map((exp) => {
                   const isWinner = exp.id === plan.recommendedWinnerId;
+                  const isExportActive = activeExportId === exp.id;
+
                   return (
                     <tr key={exp.id} className={`hover:bg-slate-700/30 transition-colors ${isWinner ? 'bg-emerald-900/10' : ''}`}>
                       <td className="p-4">
@@ -337,13 +372,43 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                           </div>
                       </td>
                       <td className="p-4 text-center">
-                          <button 
-                            onClick={() => handleDownloadModel(exp.name)}
-                            className="p-2 rounded-lg bg-slate-700/50 hover:bg-blue-600/40 text-slate-400 hover:text-blue-400 transition-all border border-slate-600 hover:border-blue-500/50 group"
-                            title="Download Model Weights"
-                          >
-                            <Download size={18} className="group-active:scale-90 transition-transform" />
-                          </button>
+                          <div className="relative inline-block" ref={isExportActive ? dropdownRef : null}>
+                            <button 
+                              onClick={() => setActiveExportId(isExportActive ? null : exp.id)}
+                              className={`p-2 rounded-lg transition-all border flex items-center gap-1 group ${isExportActive ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-700/50 text-slate-400 hover:text-blue-400 border-slate-600 hover:border-blue-500/50'}`}
+                              title="Export Options"
+                            >
+                              <Download size={18} className="group-active:scale-90 transition-transform" />
+                              <ChevronDown size={14} className={`transition-transform duration-200 ${isExportActive ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isExportActive && (
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800/95 backdrop-blur-xl border border-slate-600 rounded-xl shadow-2xl z-[60] overflow-hidden animate-fade-in-down origin-top-right">
+                                <div className="px-3 py-2 border-b border-slate-700 text-[10px] uppercase tracking-widest text-slate-500 font-bold">Choose Format</div>
+                                <button 
+                                  onClick={() => handleExport(exp.name, 'weights')}
+                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-blue-500"
+                                >
+                                  <Layers size={14} className="text-blue-400" />
+                                  <span>Weights (.bin)</span>
+                                </button>
+                                <button 
+                                  onClick={() => handleExport(exp.name, 'onnx')}
+                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-emerald-500"
+                                >
+                                  <FileCode size={14} className="text-emerald-400" />
+                                  <span>ONNX Format</span>
+                                </button>
+                                <button 
+                                  onClick={() => handleExport(exp.name, 'tflite')}
+                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-amber-500"
+                                >
+                                  <Box size={14} className="text-amber-400" />
+                                  <span>TF Lite</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                       </td>
                     </tr>
                   );
