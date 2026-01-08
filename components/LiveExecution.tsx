@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ExperimentModel, LogEntry } from '../types';
 import { Terminal, CheckCircle2, Loader2, Circle, Activity, Cpu, Database, Zap, Target } from 'lucide-react';
 
@@ -7,6 +7,78 @@ interface LiveExecutionProps {
   logs: LogEntry[];
   currentExperimentId: string | null;
 }
+
+/**
+ * A sub-component that smoothly animates a numeric value from its current state 
+ * to a new target state, creating a "converging" effect.
+ */
+const AnimatedMetric: React.FC<{ 
+  value: number; 
+  formatter: (v: number) => string; 
+  isActive: boolean;
+  isCompleted: boolean;
+  colorClass: string;
+}> = ({ value, formatter, isActive, isCompleted, colorClass }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const requestRef = useRef<number>(null);
+  const previousValueRef = useRef(0);
+
+  useEffect(() => {
+    if (!isActive && !isCompleted) {
+      setDisplayValue(0);
+      previousValueRef.current = 0;
+      return;
+    }
+
+    const startValue = previousValueRef.current;
+    const endValue = value;
+    const startTime = performance.now();
+    const duration = 800; // ms
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function: easeOutExpo
+      const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      const current = startValue + (endValue - startValue) * easeProgress;
+      
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        requestRef.current = requestAnimationFrame(animate);
+      } else {
+        previousValueRef.current = endValue;
+      }
+    };
+
+    requestRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [value, isActive, isCompleted]);
+
+  // Add a slight jitter if active to simulate "computing"
+  const [jitter, setJitter] = useState(0);
+  useEffect(() => {
+    if (!isActive || isCompleted) {
+      setJitter(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setJitter((Math.random() - 0.5) * 0.02);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isActive, isCompleted]);
+
+  const finalValue = isActive && !isCompleted ? displayValue + jitter : displayValue;
+
+  return (
+    <span className={`text-[11px] font-mono font-bold transition-colors duration-500 ${isCompleted ? 'text-green-400' : colorClass}`}>
+      {formatter(finalValue)}
+    </span>
+  );
+};
 
 export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs, currentExperimentId }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -75,32 +147,47 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
                     </div>
                   </div>
                   
-                  {/* Real-time Metrics Display */}
+                  {/* Real-time Metrics Display with Gradual Convergence */}
                   {(isActive || isCompleted) && liveMetrics && (
-                    <div className="grid grid-cols-3 gap-2 mt-2 p-2 bg-black/20 rounded border border-slate-700/50 animate-fade-in">
-                      <div className="flex flex-col">
+                    <div className="grid grid-cols-3 gap-2 mt-2 p-2 bg-black/20 rounded border border-slate-700/50 animate-fade-in relative overflow-hidden">
+                      {isActive && (
+                        <div className="absolute inset-0 bg-blue-500/5 pointer-events-none animate-pulse"></div>
+                      )}
+                      <div className="flex flex-col relative z-10">
                         <span className="text-[9px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
                           <Target size={10} className="text-blue-400" /> Acc
                         </span>
-                        <span className={`text-[11px] font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-blue-300'}`}>
-                          {(liveMetrics.accuracy * 100).toFixed(1)}%
-                        </span>
+                        <AnimatedMetric 
+                          value={liveMetrics.accuracy} 
+                          formatter={(v) => `${(v * 100).toFixed(1)}%`}
+                          isActive={isActive}
+                          isCompleted={isCompleted}
+                          colorClass="text-blue-300"
+                        />
                       </div>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col relative z-10">
                         <span className="text-[9px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
                           <Zap size={10} className="text-amber-400" /> Lat
                         </span>
-                        <span className={`text-[11px] font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-amber-300'}`}>
-                          {liveMetrics.latencyMs.toFixed(0)}ms
-                        </span>
+                        <AnimatedMetric 
+                          value={liveMetrics.latencyMs} 
+                          formatter={(v) => `${v.toFixed(0)}ms`}
+                          isActive={isActive}
+                          isCompleted={isCompleted}
+                          colorClass="text-amber-300"
+                        />
                       </div>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col relative z-10">
                         <span className="text-[9px] text-slate-500 uppercase tracking-tighter flex items-center gap-1">
                           <Database size={10} className="text-purple-400" /> Size
                         </span>
-                        <span className={`text-[11px] font-mono font-bold ${isCompleted ? 'text-green-400' : 'text-purple-300'}`}>
-                          {liveMetrics.modelSizeMb > 0 ? `${liveMetrics.modelSizeMb}MB` : '---'}
-                        </span>
+                        <AnimatedMetric 
+                          value={liveMetrics.modelSizeMb} 
+                          formatter={(v) => v > 0 ? `${v.toFixed(0)}MB` : '---'}
+                          isActive={isActive}
+                          isCompleted={isCompleted}
+                          colorClass="text-purple-300"
+                        />
                       </div>
                     </div>
                   )}
@@ -108,8 +195,14 @@ export const LiveExecution: React.FC<LiveExecutionProps> = ({ experiments, logs,
                   {/* Mini Infrastructure Stats */}
                   {(isActive || isCompleted) && (
                     <div className="flex gap-4 mt-2 text-[10px] text-slate-500 animate-fade-in border-t border-slate-700/30 pt-2">
-                       <span className="flex items-center gap-1 uppercase"><Cpu size={10} /> {(progress > 30 || isCompleted) ? 'Compute: OK' : 'Allocating'}</span>
-                       <span className="flex items-center gap-1 uppercase"><Database size={10} /> {(progress > 10 || isCompleted) ? 'Data: Sync' : 'Waiting'}</span>
+                       <span className="flex items-center gap-1 uppercase">
+                         <Cpu size={10} className={isActive ? 'animate-spin' : ''} /> 
+                         {(progress > 30 || isCompleted) ? 'Compute: OK' : 'Allocating'}
+                       </span>
+                       <span className="flex items-center gap-1 uppercase">
+                         <Database size={10} className={isActive ? 'animate-bounce' : ''} /> 
+                         {(progress > 10 || isCompleted) ? 'Data: Sync' : 'Waiting'}
+                       </span>
                     </div>
                   )}
                 </div>
