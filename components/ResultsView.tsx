@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ExperimentPlan, ExperimentModel } from '../types';
-import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, Info, FileCode, Box, Layers } from 'lucide-react';
+import { Trophy, BarChart3, Database, Zap, Activity, Download, ChevronUp, ChevronDown, Filter, Info, FileCode, Box, Layers, Loader2, CheckCircle } from 'lucide-react';
 
 interface ResultsViewProps {
   plan: ExperimentPlan;
@@ -47,7 +47,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [minAccuracy, setMinAccuracy] = useState<number>(0);
   const [activeExportId, setActiveExportId] = useState<string | null>(null);
+  const [isPackaging, setIsPackaging] = useState<string | null>(null); // format_modelId
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'info'} | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Auto-hide toast
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -65,36 +75,57 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   const maxLatency = Math.max(...plan.experiments.map(e => e.simulatedMetrics.latencyMs));
   const maxSize = Math.max(...plan.experiments.map(e => e.simulatedMetrics.modelSizeMb));
 
-  const handleExport = (modelName: string, format: ExportFormat) => {
-    let extension = '';
-    let description = '';
+  const handleExport = async (model: ExperimentModel, format: ExportFormat) => {
+    const packageKey = `${format}_${model.id}`;
+    setIsPackaging(packageKey);
     
+    // Simulate complex model serialization
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    let extension = '';
+    let header = new Uint8Array();
+    
+    // Create actual simulated binary data for the specific format
     switch (format) {
       case 'onnx':
         extension = 'onnx';
-        description = 'Open Neural Network Exchange format for cross-platform inference.';
+        // Simulating ONNX Magic Bytes (not exact but illustrative for binary blobs)
+        header = new Uint8Array([0x08, 0x01, 0x12, 0x04, 0x4F, 0x4E, 0x4E, 0x58]); 
         break;
       case 'tflite':
         extension = 'tflite';
-        description = 'TensorFlow Lite format optimized for mobile and edge devices.';
+        // Simulating TFLite schema version bytes
+        header = new Uint8Array([0x54, 0x46, 0x4C, 0x33, 0x00, 0x00, 0x12, 0x00]);
         break;
       case 'weights':
         extension = 'bin';
-        description = 'Raw model weights and metadata.';
+        // Simulating raw binary data header
+        header = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x00, 0x00, 0x00]);
         break;
     }
 
-    const dummyContent = `LabLoop Export\nModel: ${modelName}\nFormat: ${format.toUpperCase()}\nDescription: ${description}\n\n[SIMULATED BINARY DATA]`;
-    const blob = new Blob([dummyContent], { type: 'application/octet-stream' });
+    // Combine header with "simulated" weight data
+    const dummyWeights = new TextEncoder().encode(`Model: ${model.name}\nAccuracy: ${model.simulatedMetrics.accuracy}\nSimulated Binary Data Padding...`);
+    const combinedData = new Uint8Array(header.length + dummyWeights.length);
+    combinedData.set(header);
+    combinedData.set(dummyWeights, header.length);
+
+    const blob = new Blob([combinedData], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${modelName.toLowerCase().replace(/\s+/g, '_')}.${extension}`;
+    link.download = `${model.name.toLowerCase().replace(/\s+/g, '_')}.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    
+    setIsPackaging(null);
     setActiveExportId(null);
+    setToast({ 
+      message: `${model.name} exported as ${format.toUpperCase()}`, 
+      type: 'success' 
+    });
   };
 
   const handleSort = (field: SortField) => {
@@ -143,8 +174,18 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in-up">
+    <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in-up relative">
       
+      {/* Localized Notification System */}
+      {toast && (
+        <div className="fixed bottom-10 right-10 z-[100] animate-fade-in-right">
+          <div className={`px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border backdrop-blur-xl ${toast.type === 'success' ? 'bg-emerald-900/90 border-emerald-500/50 text-emerald-100' : 'bg-blue-900/90 border-blue-500/50 text-blue-100'}`}>
+            <CheckCircle size={20} className="text-emerald-400" />
+            <span className="font-medium">{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* Winner Banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border border-emerald-500/30 rounded-2xl p-8 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
@@ -385,26 +426,35 @@ export const ResultsView: React.FC<ResultsViewProps> = ({ plan }) => {
                             {isExportActive && (
                               <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800/95 backdrop-blur-xl border border-slate-600 rounded-xl shadow-2xl z-[60] overflow-hidden animate-fade-in-down origin-top-right">
                                 <div className="px-3 py-2 border-b border-slate-700 text-[10px] uppercase tracking-widest text-slate-500 font-bold">Choose Format</div>
+                                
+                                {/* Weights Binary Export */}
                                 <button 
-                                  onClick={() => handleExport(exp.name, 'weights')}
-                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-blue-500"
+                                  disabled={!!isPackaging}
+                                  onClick={() => handleExport(exp, 'weights')}
+                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-blue-500 disabled:opacity-50"
                                 >
-                                  <Layers size={14} className="text-blue-400" />
-                                  <span>Weights (.bin)</span>
+                                  {isPackaging === `weights_${exp.id}` ? <Loader2 size={14} className="animate-spin text-blue-400" /> : <Layers size={14} className="text-blue-400" />}
+                                  <span>{isPackaging === `weights_${exp.id}` ? 'Packaging...' : 'Weights (.bin)'}</span>
                                 </button>
+                                
+                                {/* ONNX Export */}
                                 <button 
-                                  onClick={() => handleExport(exp.name, 'onnx')}
-                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-emerald-500"
+                                  disabled={!!isPackaging}
+                                  onClick={() => handleExport(exp, 'onnx')}
+                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-emerald-500 disabled:opacity-50"
                                 >
-                                  <FileCode size={14} className="text-emerald-400" />
-                                  <span>ONNX Format</span>
+                                  {isPackaging === `onnx_${exp.id}` ? <Loader2 size={14} className="animate-spin text-emerald-400" /> : <FileCode size={14} className="text-emerald-400" />}
+                                  <span>{isPackaging === `onnx_${exp.id}` ? 'Packaging...' : 'ONNX Format'}</span>
                                 </button>
+                                
+                                {/* TF Lite Export */}
                                 <button 
-                                  onClick={() => handleExport(exp.name, 'tflite')}
-                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-amber-500"
+                                  disabled={!!isPackaging}
+                                  onClick={() => handleExport(exp, 'tflite')}
+                                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-3 transition-colors border-l-2 border-transparent hover:border-amber-500 disabled:opacity-50"
                                 >
-                                  <Box size={14} className="text-amber-400" />
-                                  <span>TF Lite</span>
+                                  {isPackaging === `tflite_${exp.id}` ? <Loader2 size={14} className="animate-spin text-amber-400" /> : <Box size={14} className="text-amber-400" />}
+                                  <span>{isPackaging === `tflite_${exp.id}` ? 'Packaging...' : 'TF Lite'}</span>
                                 </button>
                               </div>
                             )}
