@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ExperimentStatus, ExperimentPlan, LogEntry } from './types';
 import { generateExperimentPlan } from './services/geminiService';
@@ -5,7 +6,8 @@ import { InputSection } from './components/InputSection';
 import { ExperimentPlanner } from './components/ExperimentPlanner';
 import { LiveExecution } from './components/LiveExecution';
 import { ResultsView } from './components/ResultsView';
-import { Activity, AlertTriangle, RefreshCcw, XCircle } from 'lucide-react';
+// Fixed missing Loader2 import
+import { Activity, AlertTriangle, RefreshCcw, XCircle, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<ExperimentStatus>(ExperimentStatus.IDLE);
@@ -14,6 +16,7 @@ const App: React.FC = () => {
   const [currentExperimentId, setCurrentExperimentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastGoal, setLastGoal] = useState<string>('');
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   // Check if API KEY is available
   const isApiKeyMissing = !process.env.API_KEY;
@@ -37,6 +40,7 @@ const App: React.FC = () => {
     setPlan(null);
     setLogs([]);
     setCurrentExperimentId(null);
+    setIsFinalizing(false);
     
     try {
       const generatedPlan = await generateExperimentPlan(goal);
@@ -207,9 +211,16 @@ const App: React.FC = () => {
       timeoutIds.push(setTimeout(() => {
         if (!isMounted) return;
         setCurrentExperimentId(null);
-        setStatus(ExperimentStatus.COMPLETED);
         addLog("All experiments completed successfully.", "success");
         addLog("Generating final comparative report...", "info");
+        
+        // Brief finalize state to show results skeleton
+        setIsFinalizing(true);
+        setTimeout(() => {
+          if (!isMounted) return;
+          setStatus(ExperimentStatus.COMPLETED);
+          setIsFinalizing(false);
+        }, 1500);
       }, delayOffset));
     };
 
@@ -244,10 +255,10 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         
-        {/* State: Idle / Planning */}
+        {/* State: Idle / Planning / Error */}
         {(status === ExperimentStatus.IDLE || status === ExperimentStatus.PLANNING || status === ExperimentStatus.ERROR) && (
-           <div className="flex flex-col items-center justify-center min-h-[60vh]">
-              <div className="text-center mb-10 space-y-4">
+           <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12">
+              <div className="text-center space-y-4">
                  <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
                     AI Experimentation, <br/> Accelerated.
                  </h1>
@@ -288,11 +299,22 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <InputSection 
-                  onGenerate={handleGenerate} 
-                  isLoading={status === ExperimentStatus.PLANNING} 
-                  isDisabled={isApiKeyMissing}
-                />
+                <>
+                  <InputSection 
+                    onGenerate={handleGenerate} 
+                    isLoading={status === ExperimentStatus.PLANNING} 
+                    isDisabled={isApiKeyMissing}
+                  />
+                  {status === ExperimentStatus.PLANNING && (
+                    <div className="w-full">
+                      <div className="flex items-center justify-center gap-3 text-indigo-400 mb-6 animate-pulse">
+                        <Loader2 className="animate-spin" />
+                        <span className="font-bold uppercase tracking-widest text-sm">Gemini is Architecting Experiments...</span>
+                      </div>
+                      <ExperimentPlanner loading={true} />
+                    </div>
+                  )}
+                </>
               )}
            </div>
         )}
@@ -312,32 +334,32 @@ const App: React.FC = () => {
                <ExperimentPlanner plan={plan} />
             </div>
 
-            {/* Phase 2: Execution (Visible during execution) */}
-            {(status === ExperimentStatus.EXECUTING || status === ExperimentStatus.COMPLETED) && (
-                <div>
-                   <h2 className="text-2xl font-bold text-white mb-6">Live Execution</h2>
-                   <LiveExecution 
-                      experiments={plan.experiments} 
-                      logs={logs} 
-                      currentExperimentId={currentExperimentId} 
-                   />
-                </div>
-            )}
+            {/* Phase 2: Execution */}
+            <div>
+               <h2 className="text-2xl font-bold text-white mb-6">Live Execution</h2>
+               <LiveExecution 
+                  experiments={plan.experiments} 
+                  logs={logs} 
+                  currentExperimentId={currentExperimentId} 
+               />
+            </div>
 
-            {/* Phase 3: Results (Only when completed) */}
-            {status === ExperimentStatus.COMPLETED && (
+            {/* Phase 3: Results */}
+            {(status === ExperimentStatus.COMPLETED || isFinalizing) && (
                <div>
                   <h2 className="text-2xl font-bold text-white mb-6">Final Results</h2>
-                  <ResultsView plan={plan} />
+                  <ResultsView plan={plan} loading={isFinalizing} />
                   
-                  <div className="mt-12 text-center">
-                    <button 
-                        onClick={() => setStatus(ExperimentStatus.IDLE)}
-                        className="bg-slate-800 hover:bg-slate-700 text-white font-medium px-8 py-3 rounded-lg transition-all border border-slate-700 hover:border-slate-600 shadow-lg"
-                    >
-                        Start New Experiment
-                    </button>
-                  </div>
+                  {status === ExperimentStatus.COMPLETED && (
+                    <div className="mt-12 text-center animate-fade-in-up">
+                      <button 
+                          onClick={() => setStatus(ExperimentStatus.IDLE)}
+                          className="bg-slate-800 hover:bg-slate-700 text-white font-medium px-8 py-3 rounded-xl transition-all border border-slate-700 hover:border-slate-600 shadow-lg active:scale-95"
+                      >
+                          Start New Experiment
+                      </button>
+                    </div>
+                  )}
                </div>
             )}
           </div>
