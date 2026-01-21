@@ -4,7 +4,7 @@ import { FlaskConical, Target } from 'lucide-react';
 
 interface ExperimentPlannerProps {
   plan?: ExperimentPlan | null;
-  loading?: boolean;
+  /bhkjnloading?: boolean;
 }
 
 const SkeletonLine = ({ width = '100%', height = '12px' }: { width?: string; height?: string }) => (
